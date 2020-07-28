@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "1022289935319",
+    "firebase_url": "https://ocr-reader-1231234.firebaseio.com",
+    "project_id": "ocr-reader-1231234",
+    "storage_bucket": "ocr-reader-1231234.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1022289935319:android:b5b175f775dbb86bdba992",
+        "android_client_info": {
+          "package_name": "com.example.OCR"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1022289935319-0gb6kh06333pigqssep5n0t7kr8ulflc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBWsNjioSGQuweyF7gT2f8n2CQUCqelBp0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1022289935319-0gb6kh06333pigqssep5n0t7kr8ulflc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
