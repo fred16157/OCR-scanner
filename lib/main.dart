@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -31,6 +32,8 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   ImagePicker _picker = ImagePicker();
   bool imageLoaded = false;
   VisionText visionText;
+  List<RecognizedLanguage> languages;
+  final _key = GlobalKey();
   @override
   void initState() {
     super.initState();
@@ -44,7 +47,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
       imageLoaded = true;
     });
     FirebaseVisionImage visionImage = FirebaseVisionImage.fromFile(pickedImage);
-    TextRecognizer textRecognizer = FirebaseVision.instance.textRecognizer();
+    TextRecognizer textRecognizer = FirebaseVision.instance.cloudTextRecognizer();
     visionText = await textRecognizer.processImage(visionImage);
     setState(() {});
     for (TextBlock block in visionText.blocks) {
@@ -68,9 +71,8 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
       imageLoaded = true;
     });
     FirebaseVisionImage visionImage = FirebaseVisionImage.fromFile(pickedImage);
-    TextRecognizer textRecognizer = FirebaseVision.instance.textRecognizer();
+    TextRecognizer textRecognizer = FirebaseVision.instance.cloudTextRecognizer();
     visionText = await textRecognizer.processImage(visionImage);
-    setState(() {});
     for (TextBlock block in visionText.blocks) {
       for (TextLine line in block.lines) {
         for (TextElement word in line.elements) {
@@ -80,7 +82,9 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
         }
         text = text + '\n';
       }
+      text = text + '\n';
     }
+    setState(() {});
     textRecognizer.close();
   }
 
@@ -88,6 +92,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
+        fit: StackFit.expand,
         children: <Widget>[
           Column(
             children: <Widget>[
@@ -106,7 +111,14 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                         Image.file(
                           pickedImage,
                           fit: BoxFit.cover,
+                          key: _key,
                         ),
+                        FutureBuilder<Widget>(future: _buildResults(visionText),
+                          builder: (context, snapshot) {
+                            if(snapshot.hasData) return snapshot.data;
+                            else return Container();
+                          },
+                        )            
                       ],)
                     ))
                   : Center(
@@ -134,13 +146,12 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                     ),
             ],
           ),
-          _buildResults(visionText),
           Positioned.fill(
             child: Align(
               alignment: Alignment.bottomCenter,
               child: Container(
                 height: 200,
-                width: double.maxFinite,
+                width: double.maxFinite - 40,
                 child: imageLoaded
                     ? GestureDetector(
                         onTap: () {
@@ -149,15 +160,23 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                               PageRouteBuilder(
                                   transitionDuration:
                                       Duration(milliseconds: 500),
-                                  pageBuilder: (_, __, ___) =>
-                                      TextViewerPage()));
+                                  pageBuilder: (BuildContext context, Animation<double> animation, Animation<double> secondartAnimation) {
+                                    return AnimatedBuilder(animation: animation, builder: (BuildContext context, Widget child) {
+                                      return Opacity(opacity: animation.value,
+                                        child: TextViewerPage()
+                                      );
+                                    });
+                                  }));
                         },
                         child: Hero(
                           tag: "transition-target",
                           child: Card(
                             elevation: 16,
                             child: text == ''
-                                ? Text('텍스트 분석 중...')
+                                ? Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Text('텍스트 분석 중...'),
+                                )
                                 : Padding(
                                     padding: const EdgeInsets.all(16.0),
                                     child: Text(
@@ -204,23 +223,55 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildResults(VisionText scanResults) {
+  Future<Widget> _buildResults(VisionText scanResults) async {
     CustomPainter painter;
-    if (scanResults != null) {
-      var decodedImage = Image.file(pickedImage);
-      final Size imageSize = Size(
-        decodedImage.width.toDouble(),
-        decodedImage.height.toDouble(),
-      );
-      painter = TextDetectorPainter(imageSize, scanResults);
-
-      return CustomPaint(
-        painter: painter,
-      );
-    } else {
-      return Container();
-    }
+    if(pickedImage == null || scanResults == null) return Container();
+    var decodedImage = await decodeImageFromList(pickedImage.readAsBytesSync());
+    painter = TextDetectorPainter(Size(decodedImage.width.toDouble(), decodedImage.height.toDouble()), scanResults);
+    
+    return CustomPaint(
+      painter: painter,
+    );
   }
+}
+
+
+class HeroDialogRoute<T> extends PageRoute<T> {
+  HeroDialogRoute({this.builder}) : super();
+
+  final WidgetBuilder builder;
+
+  @override
+  bool get opaque => false;
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 500);
+
+  @override
+  bool get maintainState => true;
+
+  @override
+  Color get barrierColor => Colors.black54;
+
+  @override
+  Widget buildTransitions(BuildContext context, Animation<double> animation,
+      Animation<double> secondaryAnimation, Widget child) {
+    return new FadeTransition(
+        opacity: new CurvedAnimation(parent: animation, curve: Curves.easeOut),
+        child: child);
+  }
+
+  @override
+  Widget buildPage(BuildContext context, Animation<double> animation,
+      Animation<double> secondaryAnimation) {
+    return builder(context);
+  }
+
+  @override
+  String get barrierLabel => null;
 }
 
 class TextDetectorPainter extends CustomPainter {
@@ -271,20 +322,22 @@ class TextDetectorPainter extends CustomPainter {
 }
 
 class TextViewerPage extends StatelessWidget {
+  final _key = GlobalKey<ScaffoldState>();
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _key,
         appBar: AppBar(
-          title: Text("텍스트 보기"),
+          title: Text("텍스트 보기",),
           actions: <Widget>[
             IconButton(
               icon: Icon(Icons.content_copy),
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: text));
-                SnackBar(
+                _key.currentState.showSnackBar(SnackBar(
                   content: Text("텍스트가 클립보드에 복사되었습니다."),
                   duration: Duration(milliseconds: 500),
-                );
+                ));
               },
             )
           ],
@@ -292,6 +345,6 @@ class TextViewerPage extends StatelessWidget {
         body: Hero(
             tag: "transition-target",
             child: SingleChildScrollView(
-                padding: EdgeInsets.all(16.0), child: Text(text))));
+                padding: EdgeInsets.all(16.0), child: Text(text,  style: Theme.of(context).textTheme.bodyText1))));
   }
 }
